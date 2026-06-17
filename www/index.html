@@ -27,6 +27,7 @@
     <!-- HOME -->
     <section class="view active" id="view-home">
       <div class="greet-card card">
+        <button id="flameBtn" class="flame-btn" title="Зазубрить" style="display:none">🔥</button>
         <p class="greet" id="greet">こんにちは！</p>
         <p class="phrase-jp" id="phraseJp"></p>
       </div>
@@ -106,8 +107,19 @@
         <div class="yuru-variants" id="yuruRow"></div>
       </div>
 
-      <div class="block-title">Материалы (библиотеки)</div>
-      <div class="card card-pad"><div id="libsRow"></div></div>
+      <div class="block-title">Настройка деки</div>
+      <div class="setting card">
+        <h3>Материалы деки</h3>
+        <p>Какие библиотеки и занятия/темы участвуют в «Учить» и тестах.</p>
+        <div id="libsRow"></div>
+      </div>
+      <div class="setting card">
+        <h3>Лимиты и фуригана</h3>
+        <div class="stepper"><span>Новых кандзи</span><button class="st-btn" data-step="newKanji" data-d="-1">−</button><b id="nkLbl">10</b><button class="st-btn" data-step="newKanji" data-d="1">+</button></div>
+        <div class="stepper"><span>Новых слов</span><button class="st-btn" data-step="newWords" data-d="-1">−</button><b id="nwLbl">10</b><button class="st-btn" data-step="newWords" data-d="1">+</button></div>
+        <div class="stepper"><span>Новой грамматики</span><button class="st-btn" data-step="newGrammar" data-d="-1">−</button><b id="ngLbl">5</b><button class="st-btn" data-step="newGrammar" data-d="1">+</button></div>
+        <label class="toggle" style="margin-top:10px"><input type="checkbox" id="studyFuriSet"> Фуригана в карточках «Учить»</label>
+      </div>
 
       <div class="setting card">
         <h3>Звук</h3>
@@ -119,28 +131,17 @@
       </div>
 
       <div class="setting card">
-        <h3>Настройки дня</h3>
-        <p>Лимит новых карточек в день и фуригана в карточках «Учить».</p>
-        <div class="stepper"><span>Новых кандзи</span><button class="st-btn" data-step="newKanji" data-d="-1">−</button><b id="nkLbl">10</b><button class="st-btn" data-step="newKanji" data-d="1">+</button></div>
-        <div class="stepper"><span>Новых слов</span><button class="st-btn" data-step="newWords" data-d="-1">−</button><b id="nwLbl">10</b><button class="st-btn" data-step="newWords" data-d="1">+</button></div>
-        <div class="stepper"><span>Новой грамматики</span><button class="st-btn" data-step="newGrammar" data-d="-1">−</button><b id="ngLbl">5</b><button class="st-btn" data-step="newGrammar" data-d="1">+</button></div>
-        <label class="toggle" style="margin-top:10px"><input type="checkbox" id="studyFuriSet"> Фуригана в карточках «Учить»</label>
-      </div>
-      <div class="setting card">
         <h3>Комментарий грамматики</h3>
         <p>Короткий перевод рядом с конструкцией в списке грамматики.</p>
         <select id="gramCommentSel" class="q-input"><option value="auto">Авто (планшет — вкл, телефон — выкл)</option><option value="on">Всегда показывать</option><option value="off">Всегда скрывать</option></select>
       </div>
 
-
       <div class="setting card">
-        <h3>Моя библиотека</h3>
-        <p>Добавь свои слова, кандзи или грамматику.</p>
-        <div class="field"><select id="cType"><option value="words">Слово</option><option value="kanji">Кандзи</option><option value="grammar">Грамматика</option></select></div>
-        <input id="cF1" class="q-input" style="margin-bottom:8px"><input id="cF2" class="q-input" style="margin-bottom:8px"><input id="cF3" class="q-input" style="margin-bottom:10px">
-        <button class="btn primary" id="cAdd" style="width:100%">Добавить</button>
-        <button class="btn" id="libExport" style="width:100%;margin-top:8px">⬇️ Экспорт библиотек</button>
-        <label class="btn" style="display:block;text-align:center;margin-top:8px">⬆️ Импорт библиотек<input type="file" id="libImportFile" accept="application/json,.json" style="display:none"></label>
+        <h3>Библиотеки</h3>
+        <p>Свои библиотеки слов/кандзи/грамматики.</p>
+        <button class="btn primary" id="libAddBtn" style="width:100%">➕ Добавить / редактировать</button>
+        <button class="btn" id="libExportBtn" style="width:100%;margin-top:8px">⬇️ Экспорт библиотеки (.csv)</button>
+        <label class="btn" style="display:block;text-align:center;margin-top:8px">⬆️ Импорт библиотеки (.csv)<input type="file" id="libImportFile" accept=".csv,text/csv" style="display:none"></label>
       </div>
 
       <div class="setting card">
@@ -152,12 +153,15 @@
       </div>
       <div class="setting card" id="syncCard">
         <h3>Синхронизация прогресса</h3>
-        <p>Перенос на другое устройство и бэкап (сохраняется при переустановке APK).</p>
-        <button class="btn" id="syncExport" style="width:100%;margin-bottom:8px">⬇️ Экспорт в файл</button>
-        <label class="btn" style="display:block;text-align:center;margin-bottom:8px">⬆️ Импорт из файла<input type="file" id="syncImportFile" accept="application/json,.json" style="display:none"></label>
-        <button class="btn" id="syncShowCode" style="width:100%;margin-bottom:8px">🔑 Показать/скопировать код</button>
-        <textarea id="syncCode" class="q-input" placeholder="Вставь код с другого устройства…" style="display:none;width:100%;min-height:80px;margin-bottom:8px"></textarea>
-        <button class="btn primary" id="syncApplyCode" style="width:100%">Применить код</button>
+        <p>Сохрани копию прогресса в файл, чтобы перенести на другое устройство или восстановить после переустановки.</p>
+        <button class="btn primary" id="syncExportFile" style="width:100%">⬇️ Сохранить копию (файл)</button>
+        <label class="btn" style="display:block;text-align:center;margin-top:8px">⬆️ Восстановить из файла<input type="file" id="syncImportFile" accept=".json,application/json,text/plain" style="display:none"></label>
+      </div>
+      <div class="setting card">
+        <h3>Поддержка</h3>
+        <p>Сообщить о баге или предложить идею.</p>
+        <button class="btn" id="supportBtn" style="width:100%">🐞 Отправить репорт (GitHub)</button>
+        <button class="btn primary" id="donateBtn" style="width:100%;margin-top:8px">💚 Поддержать проект (Boosty)</button>
       </div>
       <div class="setting card"><h3>Сброс прогресса</h3><p>Очистить статусы, активность и историю.</p><button class="btn danger" id="resetBtn">Сбросить весь прогресс</button></div>
       <div class="setting card"><h3>О приложении</h3><p id="aboutTxt"></p></div>

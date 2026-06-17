@@ -53,7 +53,7 @@ const KList = (() => {
       ${ex.map(v=>`<div class="ex"><span class="w">${v.j||v.k}</span><span class="rd">${v.k}</span>
         <span class="mn">${LU.esc(v.r)}<br><span style="color:var(--muted2)">${LU.esc(v.e)}</span></span></div>`).join('')}
       <div class="actions">
-        <button class="btn ${known?'':'primary'}" id="mKnow">${known?'↩︎ Вернуть в учёбу':'✓ Я знаю — отсеять'}</button>
+        <button class="btn ${known?'':'primary'}" id="mKnow">${known?'↩︎ Вернуть в учёбу':'✓ Знаю'}</button>
         <button class="btn" id="mDict">🔍 В словарь</button>
         <button class="btn ghost" id="mClose" style="grid-column:1/-1">Закрыть</button></div>`;
     $('modal').classList.add('open'); $('mClose').onclick=closeSheet;

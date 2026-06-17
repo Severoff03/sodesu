@@ -5,7 +5,7 @@
 const App = (() => {
   const D = window.GENKI_DATA;
   const $ = id=>document.getElementById(id);
-  const VERSION='0.9 (beta)';
+  const VERSION='0.10 (beta)';
   const THEMES=[{id:'light',label:'Светлая'},{id:'dark',label:'Тёмная'},{id:'zen',label:'Дзен'},{id:'retro',label:'Ретро'},{id:'shinkai',label:'空'},{id:'yurucamp',label:'Yuru Camp'}];
   const THEME_BG={light:'#fff7f5',dark:'#0b0e1a',zen:'#10221a',retro:'#15171c',shinkai:'#0b1424',yurucamp:'#0f1f1c'};
   const PHRASES=[['お元気ですか？','Как дела?'],['今日の天気はどうですか？','Какая сегодня погода?'],['週末は何をしますか？','Что будешь делать на выходных?'],['趣味は何ですか？','Какое у тебя хобби?'],['朝ごはんを食べましたか？','Ты позавтракал?'],['今、何をしていますか？','Чем сейчас занят?'],['好きな食べ物は何ですか？','Какая любимая еда?'],['昨日は何をしましたか？','Что делал вчера?'],['どこに行きたいですか？','Куда хочешь поехать?'],['最近どうですか？','Как ты в последнее время?'],['何時に起きましたか？','Во сколько встал?'],['今日もがんばりましょう！','Постараемся и сегодня!']];
@@ -15,10 +15,15 @@ const App = (() => {
   // ---- своя библиотека: пересборка D из базы + custom ----
   let baseKanji, baseWords, baseGrammar;
   function mergeCustom(){
-    const c=Store.custom();
-    D.kanji = baseKanji.concat((c.kanji||[]).map((x,i)=>({c:x.c,l:1,lib:'my',freq:0,ex:[],id:10000+i,uid:'mk'+i})));
-    D.words = baseWords.concat((c.words||[]).map((x,i)=>({k:x.k,j:x.j||'',e:x.e||'',r:x.r,l:1,lib:'my',id:20000+i,uid:'mw'+i})));
-    D.grammar = baseGrammar.concat((c.grammar||[]).map((x,i)=>({t:x.t,p:x.p||'',m:x.m,l:1,lib:'my',id:30000+i,uid:'mg'+i})));
+    D.kanji=baseKanji.slice(); D.words=baseWords.slice(); D.grammar=baseGrammar.slice();
+    D.meta.libraries=D.meta.libraries.filter(l=>!l.custom);
+    (Store.customLibs()||[]).forEach(lib=>{
+      D.meta.libraries.push({id:lib.id,name:lib.name,kind:lib.kind,custom:true});
+      D.meta.lessonNames[lib.id]=lib.groups||{};
+      (lib.items.words||[]).forEach(x=>{ const id=D.words.length; D.words.push({k:x.k,j:x.j||'',e:x.e||'',r:x.r,l:x.l||1,lib:lib.id,id,uid:lib.id+'w'+id}); });
+      (lib.items.kanji||[]).forEach(x=>{ const id=D.kanji.length; D.kanji.push({c:x.c,m:x.m||'',l:x.l||1,lib:lib.id,freq:0,ex:[],id,uid:lib.id+'k'+id}); });
+      (lib.items.grammar||[]).forEach(x=>{ const id=D.grammar.length; D.grammar.push({t:x.t,p:x.p||'',m:x.m||'',d:x.d||x.m||'',l:x.l||1,lib:lib.id,id,uid:lib.id+'g'+id}); });
+    });
   }
 
   let nav=['home'];
@@ -34,6 +39,7 @@ const App = (() => {
     if(view==='home') home();
     if(view==='settings') syncSettings();
     if(view==='test'){ Test.backToSetup(); }
+    screenHint(view);
   }
 
   function metric(items){ const c=SRS.counts(items,Store); return {known:c.known, rest:c.total-c.known}; }
@@ -45,7 +51,7 @@ const App = (() => {
     const fill=(id,m,lbl)=>$(id).innerHTML=`<div class="n">${m.known}</div><div class="l">${lbl}</div><div class="rest">осталось ${m.rest}</div>`;
     fill('mKanji',mk,'кандзи'); fill('mWords',mw,'слов'); fill('mGram',mg,'грамматик');
     $('homeDue').textContent=SRS.counts(D.kanji,Store).due+SRS.counts(D.words,Store).due+SRS.counts(D.grammar,Store).due;
-    Cal.render($('cal'));
+    Cal.render($('cal')); flame();
   }
   function togglePhrase(){ const pj=$('phraseJp'); showRu=!showRu; pj.textContent=showRu?pj.dataset.ru:pj.dataset.jp; Sound.play('tap'); }
 
@@ -82,14 +88,18 @@ const App = (() => {
   function buildThemes(){ $('themeRow').innerHTML=THEMES.map(t=>`<button class="theme-btn" data-theme="${t.id}"><span class="sw sw-${t.id}"></span>${t.label}</button>`).join('');
     $('themeRow').onclick=e=>{ const b=e.target.closest('[data-theme]'); if(!b)return; Store.setSetting('theme',b.dataset.theme); applyTheme(b.dataset.theme); syncSettings(); Sound.play('tap'); }; }
   function libLessons(id){ return [...new Set(D.words.concat(D.kanji,D.grammar).filter(x=>x.lib===id).map(x=>x.l))].sort((a,b)=>a-b); }
+  function libKind(id){ const l=D.meta.libraries.find(x=>x.id===id); return l&&l.kind?l.kind:'lessons'; }
   function buildLibs(){
-    $('libsRow').innerHTML=D.meta.libraries.map(l=>{ const on=Store.libOn(l.id); const ls=libLessons(l.id);
-      let rng='';
-      if(on && ls.length>1){ const r=Store.libLess(l.id)||{min:ls[0],max:ls[ls.length-1]};
-        const opt=sel=>ls.map(n=>`<option value="${n}"${n===sel?' selected':''}>${LU.lessonLabel(l.id,n)}</option>`).join('');
-        rng=`<div class="lib-range"><span>уроки</span><select data-lr="${l.id}" data-b="min">${opt(r.min)}</select><span>—</span><select data-lr="${l.id}" data-b="max">${opt(r.max)}</select></div>`; }
-      return `<div class="lib-item"><label class="toggle"><input type="checkbox" data-lib="${l.id}" ${on?'checked':''}> ${l.name}</label>${rng}</div>`;
+    $('libsRow').innerHTML=D.meta.libraries.map(l=>{ const on=Store.libOn(l.id); const ls=libLessons(l.id); let extra='';
+      if(on && ls.length>1){
+        if(libKind(l.id)==='themes'){ const sel=Store.libThemes(l.id); const set=sel?new Set(sel):new Set(ls);
+          extra='<div class="lib-range">'+ls.map(n=>`<span class="pill mini${set.has(n)?' on':''}" data-th="${l.id}" data-n="${n}">${LU.lessonLabel(l.id,n)}</span>`).join('')+'</div>'; }
+        else { const r=Store.libLess(l.id)||{min:ls[0],max:ls[ls.length-1]}; const opt=sel=>ls.map(n=>`<option value="${n}"${n===sel?' selected':''}>${LU.lessonLabel(l.id,n)}</option>`).join('');
+          extra=`<div class="lib-range"><span>уроки</span><select data-lr="${l.id}" data-b="min">${opt(r.min)}</select><span>—</span><select data-lr="${l.id}" data-b="max">${opt(r.max)}</select></div>`; }
+      }
+      return `<div class="lib-item"><label class="toggle"><input type="checkbox" data-lib="${l.id}" ${on?'checked':''}> ${l.name}</label>${extra}</div>`;
     }).join('');
+    $('libsRow').onclick=e=>{ const th=e.target.closest('[data-th]'); if(!th)return; const lib=th.dataset.th,n=+th.dataset.n; const ls=libLessons(lib); const cur=new Set(Store.libThemes(lib)||ls); if(cur.has(n))cur.delete(n); else cur.add(n); Store.setLibThemes(lib,[...cur]); buildLibs(); };
     $('libsRow').onchange=e=>{ const c=e.target.closest('[data-lib]'); if(c){ Store.setLib(c.dataset.lib,c.checked); buildLibs(); return; }
       const lr=e.target.closest('[data-lr]'); if(lr){ const lib=lr.dataset.lr, ls=libLessons(lib); const cur=Store.libLess(lib)||{min:ls[0],max:ls[ls.length-1]}; cur[lr.dataset.b]=+lr.value; if(cur.min>cur.max){ if(lr.dataset.b==='min')cur.max=cur.min; else cur.min=cur.max; } Store.setLibLess(lib,cur); buildLibs(); } };
   }
@@ -117,18 +127,133 @@ const App = (() => {
     if($('bgReset')) $('bgReset').onclick=()=>{ Store.setBg(Store.settings().theme,null); applyTheme(Store.settings().theme); };
     if($('bgFit')) $('bgFit').addEventListener('change',e=>{ Store.setSetting('bgFit', e.target.checked?'contain':'cover'); applyUserBg(Store.settings().theme); document.getElementById('bgLayer')&&document.getElementById('bgLayer').classList.toggle('contain', e.target.checked); });
     if($('studyFuriSet')) $('studyFuriSet').addEventListener('change',e=>Store.setSetting('studyFuri',e.target.checked));
-    $('resetBtn').addEventListener('click',()=>{ if(confirm('Сбросить весь прогресс, активность и историю?')){ Store.reset(); home(); KList.render(); syncSettings(); } });
-    // своя библиотека
-    const ph={words:['Кандзи (можно пусто)','Кана','Перевод'],kanji:['Кандзи (1 символ)','Значение','(не исп.)'],grammar:['Конструкция','Шаблон','Значение']};
-    const setPh=()=>{ const t=$('cType').value||'words'; if(!ph[t])return; $('cF1').placeholder=ph[t][0]; $('cF2').placeholder=ph[t][1]; $('cF3').placeholder=ph[t][2]; $('cF3').style.display=t==='kanji'?'none':''; };
-    $('cType').onchange=setPh; setPh();
-    $('cAdd').onclick=()=>{ const t=$('cType').value, a=$('cF1').value.trim(), b=$('cF2').value.trim(), c=$('cF3').value.trim();
-      if(t==='words'){ if(!b||!c){alert('Заполни кану и перевод');return;} Store.addCustom('words',{j:a,k:b,r:c,e:''}); }
-      else if(t==='kanji'){ if(!a||!b){alert('Заполни кандзи и значение');return;} Store.addCustom('kanji',{c:a,ex:[],m:b}); }
-      else { if(!a||!c){alert('Заполни конструкцию и значение');return;} Store.addCustom('grammar',{t:a,p:b,m:c}); }
-      $('cF1').value=$('cF2').value=$('cF3').value=''; mergeCustom(); Sound.play('known'); alert('Добавлено в «Мою библиотеку»'); };
+    if($('supportBtn')) $('supportBtn').onclick=()=>openExternal('https://github.com/Severoff03/sodesu/issues/new');
+    if($('donateBtn')) $('donateBtn').onclick=()=>openExternal('https://boosty.to/m0thman/donate');
+    if($('libAddBtn')) $('libAddBtn').onclick=openLibEditor;
+    if($('libExportBtn')) $('libExportBtn').onclick=exportLibPick;
+    if($('libImportFile')) $('libImportFile').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ if(Sync.importCsv(f.name.replace(/\.csv$/i,''),r.result)){ mergeCustom(); buildLibs(); toast('Библиотека добавлена ✓'); } else toast('Не удалось прочитать файл'); }; r.readAsText(f); });
+    $('resetBtn').addEventListener('click',()=>{ confirmBox('Удалить весь прогресс?','Будут стёрты статусы, активность, история и «Зазубрить». Это действие необратимо.','Удалить', ()=>{ Store.reset(); home(); KList.render(); Dict.render(); Gram.render(); syncSettings(); flame(); toast('Прогресс удалён'); }); });
   }
 
+  function toast(msg){ let t=document.getElementById('toast'); if(!t){ t=document.createElement('div'); t.id='toast'; document.body.appendChild(t);} t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200); }
+  window.toast=toast;
+  // Свой диалог подтверждения (window.confirm в WebView не работает).
+  function confirmBox(title, text, okLabel, onYes){
+    const old=document.getElementById('confirmOv'); if(old) old.remove();
+    const o=document.createElement('div'); o.id='confirmOv'; o.className='onboard';
+    o.innerHTML=`<div class="ob-card"><div class="ob-h">${esc(title)}</div>
+      <div class="ob-row" style="display:block">${esc(text)}</div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" id="cbNo" style="flex:1">Отмена</button>
+        <button class="btn danger" id="cbYes" style="flex:1">${esc(okLabel||'Да')}</button>
+      </div></div>`;
+    document.body.appendChild(o);
+    const close=()=>o.remove();
+    o.addEventListener('click',e=>{ if(e.target===o) close(); });
+    document.getElementById('cbNo').onclick=close;
+    document.getElementById('cbYes').onclick=()=>{ close(); try{ onYes&&onYes(); }catch(e){} };
+  }
+  function openExternal(url){ try{ if(window.Android&&typeof window.Android.openUrl==='function'){ window.Android.openUrl(url); return; } }catch(e){} try{ window.open(url,'_blank'); }catch(e){} }
+
+  // ---- Одноразовые подсказки (показываются один раз для человека) ----
+  function hint(id, title, text){
+    if(Store.hintSeen(id)) return; Store.markHint(id);
+    const o=document.createElement('div'); o.className='onboard';
+    o.innerHTML=`<div class="ob-card"><div class="ob-h">${esc(title)}</div>
+      <div class="ob-row" style="display:block">${esc(text)}</div>
+      <button class="btn primary" id="hOk" style="width:100%;margin-top:12px">Понятно</button></div>`;
+    document.body.appendChild(o);
+    const close=()=>o.remove(); o.addEventListener('click',e=>{ if(e.target===o) close(); });
+    o.querySelector('#hOk').onclick=close;
+  }
+  window.appHint=hint;
+  const SCREEN_HINTS={
+    dict:['Словарь','Свайп карточки вправо — отметить «знаю», влево — убрать из «знаю». ☆ — добавить в избранное. Фильтры сверху: статус, библиотека, тема/урок.'],
+    grammar:['Грамматика','Нажми на конструкцию — откроется подробное объяснение с примером. Свайп вправо — «знаю». ☆ — избранное.'],
+    kanji:['Кандзи','Долгое нажатие на кандзи отмечает его как «знаю» (или снимает). Тап — карточка с чтениями и примерами.'],
+    test:['Тесты','Сначала выбери вариант теста и параметры (статус, библиотеки, уроки, режим, лимит времени), затем «Начать». История тестов — внизу.'],
+    study:['Учить','Тап по карточке — перевод. Свайп вправо — «знаю», влево — отложить (повтор позже). 🔥 «Зазубрить» — на главной.'],
+    settings:['Настройки','Здесь: материалы и лимиты деки, темы и свой фон, свои библиотеки (импорт/экспорт), резервная копия прогресса файлом.']
+  };
+  function screenHint(view){ const h=SCREEN_HINTS[view]; if(h) hint('h_'+view, h[0], h[1]); }
+
+  // ---- «Что нового» после обновления ----
+  const CHANGES={
+    '0.10 (beta)':[
+      'Резервная копия прогресса только файлом (выбор места сохранения).',
+      '«Полезные материалы» делятся по темам.',
+      'Кнопки GitHub/Boosty открываются во внешнем браузере.',
+      '«Зазубрить»: выход из категории после 3 «Знаю»; отложенные слова возвращаются через 10 минут.',
+      'Подсказки в меню, «Что нового» после обновлений.',
+      'Свой диалог подтверждения сброса; убраны дубли слов; экспорт выбранной библиотеки; выбор готовой темы/урока при добавлении.',
+      'Оптимизация: словарь больше не лагает при отметке слов.'
+    ]
+  };
+  function whatsNew(){
+    const seen=Store.seenVersion();
+    if(seen===VERSION) return;
+    const firstEver = !seen && !Store.onboarded(); // совсем новый пользователь — без окна
+    Store.setSeenVersion(VERSION);
+    if(firstEver) return;
+    const items=CHANGES[VERSION]||[]; if(!items.length) return;
+    const o=document.createElement('div'); o.className='onboard';
+    o.innerHTML=`<div class="ob-card"><div class="ob-h">Что нового · ${esc(VERSION)}</div>
+      <ul class="ob-list">${items.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>
+      <button class="btn primary" id="wnOk" style="width:100%;margin-top:14px">Отлично</button></div>`;
+    document.body.appendChild(o);
+    const close=()=>o.remove(); o.addEventListener('click',e=>{ if(e.target===o) close(); });
+    o.querySelector('#wnOk').onclick=close;
+  }
+  function flame(){ const b=$('flameBtn'); if(!b) return; b.style.display=Store.cramList().length>0?'':'none'; b.onclick=()=>{ Study.startCram(); hint('h_cram','Зазубрить 🔥','Здесь только слова из категории «Зазубрить». Свайп вправо — «Знаю» (3 раза — слово выходит). Свайп влево — перевод, слово вернётся через 10 минут. «Ещё» — показать сразу.'); }; }
+  function onboard(){ if(Store.onboarded()) return; const o=document.createElement('div'); o.id='onboard'; o.innerHTML='<div class="ob-card"><div class="ob-h">Как пользоваться</div><div class="ob-row">🎴 <b>Учить</b> — тап по карточке покажет перевод.</div><div class="ob-row">➡️ Свайп вправо — «знаю».</div><div class="ob-row">⬅️ Свайп влево — в деку (повтор позже).</div><div class="ob-row">🔥 «Зазубрить» — частый повтор сложных слов с главной.</div><div class="ob-row">📚 Материалы и лимиты — в Настройках.</div><button class="btn primary" id="obClose" style="width:100%;margin-top:12px">Понятно!</button></div>'; document.body.appendChild(o); document.getElementById('obClose').onclick=()=>{ Store.setOnboarded(); o.remove(); }; }
+  function openLibEditor(){
+    const libs=Store.customLibs(); const ph={words:['Кандзи (опц.)','Кана','Перевод'],kanji:['Кандзи (1 символ)','Значение',''],grammar:['Конструкция','Шаблон','Значение/описание']};
+    $('sheet').innerHTML=`<div class="grip"></div><div class="block-title" style="margin-top:0">Редактор библиотек</div>
+      <div class="field"><label>Библиотека</label><select id="leLib" class="q-input"><option value="__new">+ Новая библиотека</option>${libs.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select></div>
+      <div id="leNewBox"><div class="field"><label>Название</label><input id="leName" class="q-input" placeholder="Моя библиотека"></div>
+        <div class="field"><label>Деление</label><select id="leKind" class="q-input"><option value="lessons">По занятиям</option><option value="themes">По темам</option></select></div></div>
+      <div class="field"><label>Занятие/тема</label>
+        <select id="leGroup" class="q-input"></select>
+        <input id="leGroupName" class="q-input" placeholder="Новая тема/занятие: Урок 1 / Глаголы…" style="margin-top:8px"></div>
+      <div class="field"><label>Что добавить</label><select id="leType" class="q-input"><option value="words">Слово</option><option value="kanji">Кандзи</option><option value="grammar">Грамматика</option><option value="text" disabled>Текст (WIP)</option><option value="audio" disabled>Аудирование (WIP)</option></select></div>
+      <div id="leFields"></div>
+      <button class="btn primary" id="leAdd" style="width:100%">Добавить</button>
+      <button class="btn ghost" id="leClose" style="width:100%;margin-top:8px">Закрыть</button>`;
+    $('modal').classList.add('open');
+    const flds=()=>{ const a=ph[$('leType').value]||ph.words; $('leFields').innerHTML=`<input id="leF1" class="q-input" placeholder="${a[0]}" style="margin-bottom:8px">`+(a[1]?`<input id="leF2" class="q-input" placeholder="${a[1]}" style="margin-bottom:8px">`:'')+(a[2]?`<input id="leF3" class="q-input" placeholder="${a[2]}" style="margin-bottom:8px">`:''); };
+    const nb=()=>{ $('leNewBox').style.display=$('leLib').value==='__new'?'':'none'; };
+    // Список уже созданных тем/занятий выбранной библиотеки + «новая».
+    const pg=()=>{ const id=$('leLib').value; const lib=id!=='__new'?Store.getCustomLib(id):null;
+      const groups=lib?Object.entries(lib.groups):[];
+      $('leGroup').innerHTML=`<option value="__newg">+ Новая тема/занятие</option>`+groups.map(([k,name])=>`<option value="${k}">${esc(name)}</option>`).join('');
+      ng(); };
+    const ng=()=>{ $('leGroupName').style.display=$('leGroup').value==='__newg'?'':'none'; };
+    $('leType').onchange=flds; $('leLib').onchange=()=>{ nb(); pg(); }; $('leGroup').onchange=ng; flds(); nb(); pg();
+    $('leClose').onclick=()=>$('modal').classList.remove('open');
+    $('leAdd').onclick=()=>{ let libId=$('leLib').value; if(libId==='__new') libId=Store.addCustomLib($('leName').value.trim()||'Моя библиотека',$('leKind').value);
+      const lib=Store.getCustomLib(libId); let g, gname; const gv=$('leGroup') ? $('leGroup').value : '__newg';
+      if(gv && gv!=='__newg' && lib.groups[gv]){ g=+gv; gname=lib.groups[gv]; }
+      else { gname=$('leGroupName').value.trim()||'1'; g=null; for(const k in lib.groups){ if(lib.groups[k]===gname) g=+k; } if(g===null){ const ns=Object.keys(lib.groups).map(Number); g=ns.length?Math.max(...ns)+1:1; } }
+      const t=$('leType').value, f1=($('leF1')||{}).value||'', f2=($('leF2')||{}).value||'', f3=($('leF3')||{}).value||'';
+      if(t==='words'){ if(!f2||!f3){ toast('Заполни кану и перевод'); return; } Store.addCustomItem(libId,'words',{j:f1.trim(),k:f2.trim(),r:f3.trim(),e:''},g,gname); }
+      else if(t==='kanji'){ if(!f1||!f2){ toast('Заполни кандзи и значение'); return; } Store.addCustomItem(libId,'kanji',{c:f1.trim(),m:f2.trim()},g,gname); }
+      else { if(!f1||!f3){ toast('Заполни конструкцию и значение'); return; } Store.addCustomItem(libId,'grammar',{t:f1.trim(),p:f2.trim(),m:f3.trim()},g,gname); }
+      mergeCustom(); buildLibs(); toast('Добавлено ✓'); openLibEditor(); };
+  }
+  function doExportLib(lib){ Sync.downloadCsv((lib.name||'library')+'.csv', libToCsv(lib)); if(!(window.Android&&window.Android.saveFile)) toast('Файл сохранён в Загрузки'); }
+  function exportLibPick(){ const libs=Store.customLibs(); if(!libs.length){ toast('Нет своих библиотек'); return; }
+    if(libs.length===1){ doExportLib(libs[0]); return; }
+    const o=document.createElement('div'); o.className='onboard';
+    o.innerHTML=`<div class="ob-card"><div class="ob-h">Экспорт библиотеки</div>
+      <div class="field"><label>Выбери библиотеку</label><select id="elSel" class="q-input">${libs.map((l,i)=>`<option value="${i}">${esc(l.name)}</option>`).join('')}</select></div>
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn" id="elNo" style="flex:1">Отмена</button><button class="btn primary" id="elYes" style="flex:1">Экспорт</button></div></div>`;
+    document.body.appendChild(o); const close=()=>o.remove(); o.addEventListener('click',e=>{ if(e.target===o) close(); });
+    o.querySelector('#elNo').onclick=close;
+    o.querySelector('#elYes').onclick=()=>{ const i=+o.querySelector('#elSel').value; close(); doExportLib(libs[i]); };
+  }
+  function libToCsv(lib){ const rows=[['type','group','kanji','kana','translation','pattern']];
+    lib.items.words.forEach(x=>rows.push(['word',lib.groups[x.l]||x.l,x.j||'',x.k||'',x.r||'',''])); lib.items.kanji.forEach(x=>rows.push(['kanji',lib.groups[x.l]||x.l,x.c||'','',x.m||'',''])); lib.items.grammar.forEach(x=>rows.push(['grammar',lib.groups[x.l]||x.l,x.t||'','',x.m||'',x.p||'']));
+    return rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n'); }
   function init(){
     baseKanji=D.kanji.map(k=>({...k,uid:'k'+k.id}));
     baseWords=D.vocab.map(v=>({...v,uid:'w'+v.id}));
@@ -142,8 +267,10 @@ const App = (() => {
     try{ history.replaceState({view:'home'},''); }catch(e){}
     const gc=document.querySelector('.greet-card'); if(gc) gc.addEventListener('dblclick',togglePhrase);
     const ca=$('cal'); if(ca) ca.addEventListener('click',weekStats);
-    Dict.init(); Gram.init(); KList.init(); KList.setOnChange(home); Study.setOnChange(()=>{});
-    buildThemes(); Test.init(); bindSettings(); Sync.init(); home();
+    // Каждый блок — отдельно, чтобы сбой одного модуля не ронял весь интерфейс (главную).
+    const safe=(fn)=>{ try{ fn(); }catch(e){ try{ console.error('init',e); }catch(_){} } };
+    safe(Dict.init); safe(Gram.init); safe(()=>{ KList.init(); KList.setOnChange(home); }); safe(()=>Study.setOnChange(()=>{}));
+    safe(buildThemes); safe(Test.init); safe(bindSettings); safe(Sync.init); safe(home); safe(flame); safe(onboard); safe(whatsNew);
   }
   function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
   if(document.readyState!=='loading') init(); else document.addEventListener('DOMContentLoaded',init);

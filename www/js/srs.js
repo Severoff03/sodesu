@@ -21,7 +21,7 @@ const SRS = (() => {
   function queue(items,store,opts){
     const s=store.settings(); const newLimit=(opts&&opts.newLimit!=null)?opts.newLimit:s.newKanji;
     const LL=s.libLess||{}; const inR=k=>{ const r=LL[k.lib]; return r?(k.l>=r.min&&k.l<=r.max):(k.l>=s.lessMin&&k.l<=s.lessMax); };
-    const pool=items.filter(k=>libOn(k)&&inR(k));
+    const pool=items.filter(k=>libOn(k)&&inR(k)&&!Store.isArchived(k.uid));
     const due=[], fr=[];
     for(const k of pool){ const rec=store.get(k.uid); const st=rec?rec.s:'new';
       if(st==='known') continue; if(st==='new') fr.push(k); else if(isDue(rec)) due.push(k); }
@@ -30,7 +30,7 @@ const SRS = (() => {
   }
   function counts(items,store){
     let due=0,learning=0,known=0,total=0;
-    for(const k of items){ if(!libOn(k)) continue; total++;
+    for(const k of items){ if(!libOn(k)||Store.isArchived(k.uid)) continue; total++;
       const st=store.status(k.uid);
       if(st==='known') known++; else { if(st==='learning'||st==='review') learning++; if(isDue(store.get(k.uid))) due++; } }
     return { due, learning, known, total };

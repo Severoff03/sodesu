@@ -61,8 +61,16 @@ const Gram = (() => {
     buildStatus(); buildLibs(); buildLessons();
     $('gramInput').addEventListener('input',()=>render());
     const box=$('gramResults');
-    box.addEventListener('click',e=>{ const f=e.target.closest('[data-fav]'); if(f){ e.stopPropagation(); Store.favToggle(f.dataset.fav); render(); return; } const en=e.target.closest('[data-gid]'); if(en) openDetail(+en.dataset.gid); });
-    LU.attachSwipe(box, null, ()=>render());
+    box.addEventListener('click',e=>{ const f=e.target.closest('[data-fav]'); if(f){ e.stopPropagation();
+        const on=Store.favToggle(f.dataset.fav);
+        if(statusFilter==='fav'){ render(); } else { f.classList.toggle('on',on); f.textContent=on?'★':'☆'; } return; }
+      const en=e.target.closest('[data-gid]'); if(en) openDetail(+en.dataset.gid); });
+    LU.attachSwipe(box, null, (uid,action)=>{
+      if(statusFilter==='all'||statusFilter==='fav'){
+        const node=box.querySelector('[data-uid="'+uid+'"]');
+        if(node){ node.style.transform=''; node.style.opacity=''; node.classList.toggle('known-entry', action==='known'); }
+      } else { render(); }
+    });
     render('');
   }
   return { init, render };

@@ -13,6 +13,10 @@ android/local.properties
 .DS_Store
 # папка релиза — патчноут и APK грузятся как ассеты в GitHub Releases, не в репозиторий
 /release/
+# неиспользуемые исходники/арты — не в публичный репозиторий
+/data/
+/docs/backgraunde/
+/docs/4e1d8226cd9160ce875efaf2e49af8bb.jpg
 # ключи подписи
 *.keystore
 *.jks

@@ -16,9 +16,9 @@ const Dict = (() => {
     if(lessonFilter) list=list.filter(v=>v.l===lessonFilter);
     if(statusFilter==='fav') list=list.filter(v=>Store.favHas(uid(v)));
     else if(statusFilter!=='all') list=list.filter(v=>statusOf(v)===statusFilter);
-    if(!q) return list.slice(0,200);
+    if(!q) return list;
     const out=[];
-    for(const v of list){ if(v.j.includes(q)||v.k.includes(q)||norm(v.e).includes(q)||norm(v.r).includes(q)){ out.push(v); if(out.length>=400) break; } }
+    for(const v of list){ if(v.j.includes(q)||v.k.includes(q)||norm(v.e).includes(q)||norm(v.r).includes(q)){ out.push(v); } }
     out.sort((a,b)=>{ const am=a.k.startsWith(q)||a.j.startsWith(q)||norm(a.r).startsWith(q)?0:1; const bm=b.k.startsWith(q)||b.j.startsWith(q)||norm(b.r).startsWith(q)?0:1; return am-bm; });
     return out;
   }
@@ -48,8 +48,16 @@ const Dict = (() => {
     buildStatus(); buildLibs(); buildLessons();
     $('dictInput').addEventListener('input',()=>render());
     const box=$('dictResults');
-    box.addEventListener('click',e=>{ const f=e.target.closest('[data-fav]'); if(f){ Store.favToggle(f.dataset.fav); render(); } });
-    LU.attachSwipe(box, null, ()=>render());
+    box.addEventListener('click',e=>{ const f=e.target.closest('[data-fav]'); if(!f) return;
+      const on=Store.favToggle(f.dataset.fav);
+      if(statusFilter==='fav'){ render(); } else { f.classList.toggle('on',on); f.textContent=on?'★':'☆'; } });
+    // Точечное обновление вместо ререндера всего списка (плавность при отметке).
+    LU.attachSwipe(box, null, (uid,action)=>{
+      if(statusFilter==='all'||statusFilter==='fav'){
+        const node=box.querySelector('[data-uid="'+uid+'"]');
+        if(node){ node.style.transform=''; node.style.opacity=''; node.classList.toggle('known-entry', action==='known'); }
+      } else { render(); }
+    });
     render('');
   }
   return { init, render };
