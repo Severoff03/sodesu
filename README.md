@@ -1,7 +1,7 @@
 
 <div align="center">
 
-![そうです · Sodesu](docs/baner.png)
+![そうです · Sodesu](docs/baner1png)
 
 </div>
 
